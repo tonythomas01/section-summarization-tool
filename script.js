@@ -136,17 +136,32 @@
     }
   }
 
+    var apiKey = null;
+    /**
+     * @return {string}
+     */
+    function getApiKey() {
+        if ( apiKey ) {
+            return apiKey;
+        }
+
+        apiKey = localStorage.getItem( 'LLMApiKey' );
+        if ( apiKey ) {
+            return apiKey;
+        }
+
+        apiKey = prompt( 'Please enter your OpenAI API key from https://platform.openai.com/account/api-keys' );
+        if ( !apiKey ) {
+            throw new Error( 'Section summary requires an API key!' );
+        }
+        localStorage.setItem( 'LLMApiKey', apiKey );
+    }
+
   function summarizeSection(sectionHeading) {
     const sectionParent = sectionHeading.parent();
     const selectedLLMModel = GPTModel;
-    const LLMApiKey = localStorage.getItem('LLMApiKey');
+    const LLMApiKey = getApiKey();
 
-    if (!LLMApiKey) {
-      window.alert("Missing LLMApiKey key. Please set");
-      return;
-    }
-
-    console.log("Found API Key:", LLMApiKey);
     var fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
     const pageType = mw.config.get("wgCanonicalNamespace");
     if (pageType === "Talk") {
