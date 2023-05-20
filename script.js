@@ -123,18 +123,99 @@
     }
   }
 
-  function getSectionTextUnderHeading(pageType, sectionParent) {
-    if (pageType === "Talk") {
-      // These can be both 'p' and 'dl'
-      return  sectionParent.parent().nextUntil('.mw-heading').map(function () {
-        return this.innerText;
-      }).get();
+  function getSectionTextUnderHeading(namespace, sectionParent) {
+    if (sectionParent.parent().is('.mw-heading')) {
+      return getSectionText( sectionParent );
     } else {
-      return sectionParent.nextUntil('h2', 'p').map(function () {
-        return this.innerText;
-      }).get().join("\n");
+      return $.Deferred().resolve(
+        $('<div>').append(
+          sectionParent.nextUntil('h2').clone()
+        ).prop('innerText')
+      );
     }
   }
+
+    var discussionToolsInfo;
+    /**
+     * @param {jQuery} $heading
+     * @return {jQuery.Promise<Array>}
+     */
+    function getSectionData( $heading ) {
+        var dataPromise;
+        if ( discussionToolsInfo ) {
+            dataPromise = $.Deferred().resolve( discussionToolsInfo );
+        } else {
+            dataPromise = mw.loader.using( [ 'mediawiki.api' ] ).then( function () {
+                return new mw.Api().get( {
+                    action: 'discussiontoolspageinfo',
+                    page: mw.config.get( 'wgPageName' ),
+                    prop: 'threaditemshtml',
+                    format: 'json',
+                    formatversion: 2,
+                } );
+            } ).then( function ( data ) {
+                discussionToolsInfo = data;
+                return data;
+            } );
+        }
+
+        var sectionId = $heading.find( '.mw-headline' ).data( 'mw-thread-id' );
+
+        var sectionContent = [];
+        var processReplies = function ( reply ) {
+            if ( reply.type === 'comment' ) {
+                sectionContent.push( { type: 'comment', level: reply.level, author: reply.author, text: getCommentTextFromHtml( reply.html ) } );
+            } else if ( reply.type === 'heading' ) {
+                sectionContent.push( { type: 'heading', level: reply.level, headingLevel: reply.headingLevel, text: getCommentTextFromHtml( reply.html ) } );
+                for ( var i = 0; i < reply.replies.length; i++ ) {
+                    processReplies( reply.replies[i] );
+                }
+            } else {
+                console.log( 'Unexpected type: ' + reply.type, reply );
+            }
+        };
+
+        return dataPromise.then( function ( data ) {
+            for ( var i = 0; i < data.discussiontoolspageinfo.threaditemshtml.length; i++ ) {
+                var section = data.discussiontoolspageinfo.threaditemshtml[i];
+                if ( section.id === sectionId ) {
+                    sectionContent.push( { type: 'heading', level: 0, headingLevel: section.level, text: getCommentTextFromHtml( section.html ) } );
+                    for ( var j = 0; j < section.replies.length; j++ ) {
+                        processReplies( section.replies[j] );
+                    }
+                }
+            }
+            return sectionContent;
+        } );
+    }
+
+    /**
+     * @param {string} html
+     * @return {string}
+     */
+    function getCommentTextFromHtml( html ) {
+        return $.parseHTML( '<div>' + html + '</div>' ).map( el => el.innerText || '' ).join( '' );
+    }
+
+    /**
+     * @param {jQuery} $heading
+     * @return {jQuery.Promise<string>}
+     */
+    function getSectionText( $heading ) {
+        return getSectionData( $heading ).then( function ( data ) {
+            var sectionText = '';
+            for ( var i = 0; i < data.length; i++ ) {
+                var item = data[i];
+                if ( item.type === 'heading' ) {
+                    sectionText += '\t'.repeat( item.level ) + '='.repeat( item.headingLevel ) + item.text + '='.repeat( item.headingLevel ) + '\n\n';
+                } else if ( item.type === 'comment' ) {
+                    sectionText += ( item.author + ': ' + item.text ).replace( /^|\n/g, '$&' + '\t'.repeat( item.level ) );
+                }
+                sectionText += '\n\n';
+            }
+            return sectionText;
+        } );
+    }
 
     var apiKey = null;
     /**
@@ -163,22 +244,22 @@
     const LLMApiKey = getApiKey();
 
     var fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
-    const pageType = mw.config.get("wgCanonicalNamespace");
-    if (pageType === "Talk") {
+    const namespace = mw.config.get("wgCanonicalNamespace");
+    if (namespace === "Talk") {
       fixedPromptForChatGPT = "Summarize the following section in less than 50 words. See that each row represents a " +
         "reply from a user with the Username presented right before  (talk). Use the usernames when summarizing. \n";
     }
-    const sectionText = getSectionTextUnderHeading(pageType, sectionParent);
 
-    console.log("Found Section Text:", sectionText);
-
-    switch (selectedLLMModel) {
-      case GPTModel:
-        fetchSummaryUsingOpenAPI(fixedPromptForChatGPT, LLMApiKey, sectionText, onSummaryFetch);
-        return;
-      default:
-        fetchSummaryUsingHuggingFacesModel(LLMApiKey, HuggingFacesModelsMap[selectedLLMModel], sectionText, onSummaryFetch);
-        return;
-    }
+    getSectionTextUnderHeading(namespace, sectionParent).then(function(sectionText) {
+      console.log("Found Section Text:", sectionText);
+      switch (selectedLLMModel) {
+        case GPTModel:
+          fetchSummaryUsingOpenAPI(fixedPromptForChatGPT, LLMApiKey, sectionText, onSummaryFetch);
+          return;
+        default:
+          fetchSummaryUsingHuggingFacesModel(LLMApiKey, HuggingFacesModelsMap[selectedLLMModel], sectionText, onSummaryFetch);
+          return;
+      }
+    });
   }
 })();
