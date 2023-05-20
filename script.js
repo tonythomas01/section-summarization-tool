@@ -6,8 +6,8 @@ $(document).ready(function () {
 
   $('.mw-headline').each(function () {
     var sectionHeading = $(this);
-    var editLink = sectionHeading.siblings('.mw-editsection');
-    var immediateParent = sectionHeading.parent();
+    const editLink = sectionHeading.siblings('.mw-editsection');
+    const immediateParent = sectionHeading.parent();
 
     if (immediateParent.is('h2') || immediateParent.is('.mw-heading2')) {
       var summarizeLink = $('<span>')
@@ -39,6 +39,8 @@ $(document).ready(function () {
   });
 
   function fetchSummaryUsingOpenAPI(fixedPromptForChatGPT, openAPIKey, sectionText, callback) {
+    const gptQuery = fixedPromptForChatGPT + sectionText;
+    console.log("To GPT: ", gptQuery);
 
     $.ajax({
       url: "https://api.openai.com/v1/chat/completions",
@@ -52,7 +54,7 @@ $(document).ready(function () {
         messages: [
           {
             role: "user",
-            content: fixedPromptForChatGPT + sectionText,
+            content: gptQuery
           }
         ],
         temperature: 0.7
@@ -96,6 +98,21 @@ $(document).ready(function () {
     }
   }
 
+  function getSectionTextUnderHeading(sectionParent) {
+    if (mw.config.get("wgCanonicalNamespace") === "Talk") {
+      fixedPromptForChatGPT = "Summarize the following section in less than 50 words. See that each row represents a " +
+        "reply from a user with the Username presented right before (talk). Use the usernames when summarizing";
+      // These can be both 'p' and 'dl'
+      return  sectionParent.parent().nextUntil('.mw-heading').map(function () {
+        return this.innerText;
+      }).get();
+    } else {
+      return sectionParent.nextUntil('h2', 'p').map(function () {
+        return this.innerText;
+      }).get().join("\n");
+    }
+  }
+
   function summarizeSection(sectionHeading) {
     const sectionParent = sectionHeading.parent();
     const selectedLLMModel = GPTModel;
@@ -107,24 +124,8 @@ $(document).ready(function () {
     }
 
     console.log("Found API Key:", LLMApiKey);
-    var fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
-    var sectionText = '';
-    if (sectionParent.is('h2')) {
-      const nextHeading = sectionParent.nextAll('h2, .mw-heading2, .mw-heading2, .ext-discussiontools-init-section').first();
-      if (nextHeading.length === 0) {
-        if (mw.config.get("wgCanonicalNamespace") === "Talk") {
-          fixedPromptForChatGPT = "Summarize the following section in less than 50 words. See that each row represents a " +
-            "reply from a user with the Username presented right before (talk). Use the usernames when summarizing"
-          sectionText =  sectionParent.parent().nextUntil('.mw-heading').map(function() {
-            return this.innerText;
-          }).get();
-        } else {
-          sectionText = sectionParent.parent().nextUntil('.mw-heading', 'p').text();
-        }
-      } else {
-        sectionText = sectionParent.nextUntil(nextHeading, 'p').text().trim();
-      }
-    }
+    const fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
+    const sectionText = getSectionTextUnderHeading(sectionParent);
 
     console.log("Found Section Text:", sectionText);
 
