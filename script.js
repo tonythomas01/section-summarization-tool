@@ -38,8 +38,7 @@ $(document).ready(function () {
     }
   });
 
-  function fetchSummaryUsingOpenAPI(openAPIKey, sectionText, callback) {
-    const fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
+  function fetchSummaryUsingOpenAPI(fixedPromptForChatGPT, openAPIKey, sectionText, callback) {
 
     $.ajax({
       url: "https://api.openai.com/v1/chat/completions",
@@ -108,12 +107,20 @@ $(document).ready(function () {
     }
 
     console.log("Found API Key:", LLMApiKey);
-
+    var fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
     var sectionText = '';
     if (sectionParent.is('h2')) {
       const nextHeading = sectionParent.nextAll('h2, .mw-heading2, .mw-heading2, .ext-discussiontools-init-section').first();
       if (nextHeading.length === 0) {
-        sectionText = sectionParent.parent().nextUntil('.mw-heading', 'p').text();
+        if (mw.config.get("wgCanonicalNamespace") === "Talk") {
+          fixedPromptForChatGPT = "Summarize the following section in less than 50 words. See that each row represents a " +
+            "reply from a user with the Username presented right before (talk). Use the usernames when summarizing"
+          sectionText =  sectionParent.parent().nextUntil('.mw-heading').map(function() {
+            return this.innerText;
+          }).get();
+        } else {
+          sectionText = sectionParent.parent().nextUntil('.mw-heading', 'p').text();
+        }
       } else {
         sectionText = sectionParent.nextUntil(nextHeading, 'p').text().trim();
       }
@@ -123,7 +130,7 @@ $(document).ready(function () {
 
     switch (selectedLLMModel) {
       case GPTModel:
-        fetchSummaryUsingOpenAPI(LLMApiKey, sectionText, onSummaryFetch);
+        fetchSummaryUsingOpenAPI(fixedPromptForChatGPT, LLMApiKey, sectionText, onSummaryFetch);
         return;
       default:
         fetchSummaryUsingHuggingFacesModel(LLMApiKey, HuggingFacesModelsMap[selectedLLMModel], sectionText, onSummaryFetch);
