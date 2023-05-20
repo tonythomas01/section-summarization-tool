@@ -98,10 +98,8 @@ $(document).ready(function () {
     }
   }
 
-  function getSectionTextUnderHeading(sectionParent) {
-    if (mw.config.get("wgCanonicalNamespace") === "Talk") {
-      fixedPromptForChatGPT = "Summarize the following section in less than 50 words. See that each row represents a " +
-        "reply from a user with the Username presented right before (talk). Use the usernames when summarizing";
+  function getSectionTextUnderHeading(pageType, sectionParent) {
+    if (pageType === "Talk") {
       // These can be both 'p' and 'dl'
       return  sectionParent.parent().nextUntil('.mw-heading').map(function () {
         return this.innerText;
@@ -124,8 +122,13 @@ $(document).ready(function () {
     }
 
     console.log("Found API Key:", LLMApiKey);
-    const fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
-    const sectionText = getSectionTextUnderHeading(sectionParent);
+    var fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
+    const pageType = mw.config.get("wgCanonicalNamespace");
+    if (pageType === "Talk") {
+      fixedPromptForChatGPT = "Summarize the following section in less than 50 words. See that each row represents a " +
+        "reply from a user with the Username presented right before  (talk). Use the usernames when summarizing. \n";
+    }
+    const sectionText = getSectionTextUnderHeading(pageType, sectionParent);
 
     console.log("Found Section Text:", sectionText);
 
