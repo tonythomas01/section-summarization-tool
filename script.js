@@ -1,42 +1,67 @@
-$(document).ready(function () {
+/* jshint browser: true, jquery: true */
+/* globals $, mw, OO */
+
+// ==UserScript==
+// @name         Wikipedia ChatGPT section summaries
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  Experiment to use ChatGPT to summarize page sections.
+// @author       tonythomas01
+// @license      GPL-3.0-or-later
+// @match        https://*.wikipedia.org/*
+// @icon         https://doc.wikimedia.org/oojs-ui/master/demos/dist/themes/wikimediaui/images/icons/robot.svg
+// @grant        none
+// ==/UserScript==
+
+(function () {
   const GPTModel = "gpt-3.5-turbo";
   const HuggingFacesModelsMap = {
     "FacebookBartLargeCNN": "facebook/bart-large-cnn",
   };
 
-  $('.mw-headline').each(function () {
-    var sectionHeading = $(this);
-    const editLink = sectionHeading.siblings('.mw-editsection');
-    const immediateParent = sectionHeading.parent();
+  function main() {
+    $('.mw-headline').each(function () {
+      var sectionHeading = $(this);
+      const editLink = sectionHeading.siblings('.mw-editsection');
+      const immediateParent = sectionHeading.parent();
 
-    if (immediateParent.is('h2') || immediateParent.is('.mw-heading2')) {
-      var summarizeLink = $('<span>')
-        .addClass('mw-summarysection')
-        .addClass('mw-editsection')
-        .css('margin-left', '0.5em')
-        .append(
-          $('<span>')
-            .addClass('mw-editsection-bracket')
-            .text('[')
-        )
-        .append(
-          $('<a>')
-            .attr('href', '#')
-            .text('summarize')
-            .click(function (e) {
-              e.preventDefault();
-              summarizeSection(sectionHeading);
-            })
-        )
-        .append(
-          $('<span>')
-            .addClass('mw-editsection-bracket')
-            .text(']')
-        );
+      if (immediateParent.is('h2') || immediateParent.is('.mw-heading2')) {
+        var summarizeLink = $('<span>')
+          .addClass('mw-summarysection')
+          .addClass('mw-editsection')
+          .css('margin-left', '0.5em')
+          .append(
+            $('<span>')
+              .addClass('mw-editsection-bracket')
+              .text('[')
+          )
+          .append(
+            $('<a>')
+              .attr('href', '#')
+              .text('summarize')
+              .click(function (e) {
+                e.preventDefault();
+                summarizeSection(sectionHeading);
+              })
+          )
+          .append(
+            $('<span>')
+              .addClass('mw-editsection-bracket')
+              .text(']')
+          );
 
-      editLink.after(summarizeLink);
+        editLink.after(summarizeLink);
+      }
+    });
+  }
+
+  function loadMain() {
+    if (!window.$) {
+      return setTimeout(loadMain, 50);
     }
-  });
+    $(main);
+  }
+  loadMain();
 
   function fetchSummaryUsingOpenAPI(fixedPromptForChatGPT, openAPIKey, sectionText, callback) {
     const gptQuery = fixedPromptForChatGPT + sectionText;
@@ -111,17 +136,32 @@ $(document).ready(function () {
     }
   }
 
+    var apiKey = null;
+    /**
+     * @return {string}
+     */
+    function getApiKey() {
+        if ( apiKey ) {
+            return apiKey;
+        }
+
+        apiKey = localStorage.getItem( 'LLMApiKey' );
+        if ( apiKey ) {
+            return apiKey;
+        }
+
+        apiKey = prompt( 'Please enter your OpenAI API key from https://platform.openai.com/account/api-keys' );
+        if ( !apiKey ) {
+            throw new Error( 'Section summary requires an API key!' );
+        }
+        localStorage.setItem( 'LLMApiKey', apiKey );
+    }
+
   function summarizeSection(sectionHeading) {
     const sectionParent = sectionHeading.parent();
     const selectedLLMModel = GPTModel;
-    const LLMApiKey = localStorage.getItem('LLMApiKey');
+    const LLMApiKey = getApiKey();
 
-    if (!LLMApiKey) {
-      window.alert("Missing LLMApiKey key. Please set");
-      return;
-    }
-
-    console.log("Found API Key:", LLMApiKey);
     var fixedPromptForChatGPT = "Summarize the following section in less than 50 words:  ";
     const pageType = mw.config.get("wgCanonicalNamespace");
     if (pageType === "Talk") {
@@ -141,4 +181,4 @@ $(document).ready(function () {
         return;
     }
   }
-});
+})();
