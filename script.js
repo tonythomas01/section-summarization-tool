@@ -1,3 +1,17 @@
+/* jshint browser: true, jquery: true */
+/* globals $, mw, OO */
+
+// ==UserScript==
+// @name         Wikipedia ChatGPT section summaries
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  Experiment to use ChatGPT to summarize page sections.
+// @author       tonythomas01
+// @match        https://*.wikipedia.org/*
+// @icon         https://doc.wikimedia.org/oojs-ui/master/demos/dist/themes/wikimediaui/images/icons/robot.svg
+// @grant        none
+// ==/UserScript==
+
 $(document).ready(function () {
   const GPTModel = "gpt-3.5-turbo";
   const HuggingFacesModelsMap = {
